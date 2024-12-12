@@ -15,7 +15,7 @@ class RecipeViewModel {
     
     init(_ modelContext: ModelContext) {
         self.modelContext = modelContext
-        fetchData()
+        refreshData()
     }
     
     private(set) var recipes: [Recipe] = []
@@ -23,32 +23,12 @@ class RecipeViewModel {
     private(set) var categories: [String] = []
     
     func recipes(for category: String) -> [Recipe] {
-        return recipes.filter{
+        return recipes.filter {
             $0.tags.lowercased().contains(category.lowercased())
         }
     }
     
     func refreshData() {
-        fetchData()
-    }
-    
-    func save(_ recipe: Recipe) {
-        modelContext.insert(recipe)
-        fetchData()
-    }
-    
-    func update(_ recipe: Recipe) {
-        saveAllChanges()
-        fetchData()
-    }
-    
-    func deleteRecipe(at index: Int) {
-        modelContext.delete(recipes[index])
-        saveAllChanges()
-        fetchData()
-    }
-    
-    private func fetchData() {
         saveAllChanges()
         
         fetchRecipes()
@@ -57,8 +37,35 @@ class RecipeViewModel {
         
         if recipes.isEmpty {
             sampleRecipes.forEach { modelContext.insert($0) }
-            fetchData()
+            refreshData()
         }
+    }
+    
+    func save(_ recipe: Recipe) {
+        modelContext.insert(recipe)
+        refreshData()
+    }
+    
+    func deleteRecipe(at index: Int) {
+        modelContext.delete(recipes[index])
+        refreshData()
+    }
+    
+    func deleteCategory(at index: Int) {
+        let categoryToRemove = categories[index].lowercased()
+        
+        recipes.forEach { recipe in
+            if (recipe.tags.lowercased().contains(categoryToRemove)) {
+                let tagParts = recipe.tags.split(separator: ",")
+                let newTags = tagParts.filter { !$0.lowercased().contains(categoryToRemove) }
+                recipe.tags = newTags.joined(separator: ", ")
+            }
+        }
+        refreshData()
+    }
+    
+    private func saveAllChanges() {
+        try? modelContext.save()
     }
     
     private func fetchRecipes() {
@@ -98,11 +105,6 @@ class RecipeViewModel {
                 }
             }
         }
-        
-        categories = Array(tags)
-    }
-    
-    private func saveAllChanges() {
-        try? modelContext.save()
+        categories = Array(tags).sorted()
     }
 }

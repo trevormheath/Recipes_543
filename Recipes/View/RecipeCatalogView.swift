@@ -9,141 +9,67 @@ import SwiftUI
 import SwiftData
 
 struct RecipeCatalogView: View {
-//    @Environment(\.modelContext) private var modelContext
-//    @Query private var recipes: [Recipe]
     @Environment(RecipeViewModel.self) private var viewModel
-    
-    @State private var searchText: String = ""
-//    @State private var selectedCategory: String?
-//    @State private var selectedRecipe: Recipe?
-    
     @State private var isShowingForm = false
-    
-//    var categories: [String] {
-//        let recipeCategories = Array(Set(recipes.map { $0.tags })).sorted()
-//        return ["View All"] + recipeCategories
-//    }
+    @State private var searchText: String = ""
     
     var body: some View {
         NavigationSplitView {
-//            List(categories, id: \.self, selection: $selectedCategory) { category in
-//                Text(category)
-//                    .tag(category)
-//            }
-//            .navigationTitle("Categories")
             List {
                 NavigationLink(destination: recipeList(
                     for: viewModel.recipes,
-                    with: "All Recipes"
-                    )
+                    with: "All",
+                    matching: searchText
+                )
                 ) {
                     Text("Browse all recipes")
                 }
                 NavigationLink(destination: recipeList(
                     for: viewModel.favoriteRecipes,
-                    with: "Favorites"
-                    )
+                    with: "Favorite",
+                    matching: searchText
+                )
                 ) {
                     Text("View favorite recipes")
                 }
-                ForEach(viewModel.categories, id: \.self) {category in
+                ForEach(viewModel.categories, id: \.self) { category in
                     NavigationLink(destination: recipeList(
                         for: viewModel.recipes(for: category),
-                        with: "\(category) Recipes"
-                        )
+                        with: category,
+                        matching: searchText
+                    )
                     ) {
                         Text(category)
                     }
                 }
+                .onDelete(perform: deleteCategory)
             }
-            .sheet(isPresented: $isShowingForm) {
-                RecipeFormView(isPresented: $isShowingForm)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
             }
         } content: {
-            recipeList(for: viewModel.recipes, with: "My recipes")
-//            if let selectedCategory = selectedCategory {
-//                
-//                let filteredRecipes =  selectedCategory != "View All" ? recipes.filter { $0.tags == selectedCategory } : recipes
-//                
-//                List(selection: $selectedRecipe) {
-//                    ForEach(filteredRecipes) { recipe in
-//                        Text(recipe.title)
-//                            .tag(recipe)
-//                    }
-//                    .onDelete(perform: deleteRecipe)
-//                }
-//                .searchable(text: $searchText)
-//                .toolbar {
-//                    ToolbarItem(placement: .navigationBarTrailing) {
-//                        EditButton()
-//                    }
-//                    ToolbarItem {
-//                        Button("Add Recipe", systemImage: "plus") {
-//                            isShowingForm = true
-//                        }
-//                    }
-//                }
-//                .navigationTitle(selectedCategory)
-//                .sheet(isPresented: $isShowingForm) {
-//                    RecipeFormView(isPresented: $isShowingForm)
-//                }
-//            } else {
-//                Text("Select a Category")
-//                    .foregroundStyle(.secondary)
-//            }
+            recipeList(for: viewModel.recipes, with: "My", matching: searchText)
         } detail: {
             Text("Select a Recipe")
-//            if let selectedRecipe = selectedRecipe {
-//
-//            } else {
-//                Text("Select a Recipe")
-//                    .foregroundStyle(.secondary)
-//            }
-            
         }
-        
-        //just for testing
-//        .onAppear {
-//            insertTestData(using: modelContext)
-//        }
     }
-    private func addItem() {
+    
+    private func deleteCategory(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                viewModel.deleteCategory(at: index)
+            }
+        }
+    }
+    
+    private func enableForm() {
         withAnimation {
             isShowingForm = true
         }
     }
     
-    private func recipeList(for recipes: [Recipe], with title: String) -> some View {
-        List {
-            ForEach(recipes) { recipe in
-                NavigationLink(recipe.title, destination: RecipeDetailView(recipe: recipe))
-            }
-            .onDelete(perform: deleteRecipe)
-        }
-        
-        .toolbar {
-            ToolbarItem {
-                Button(action: addItem) {
-                    Label("Add Item", systemImage: "plus")
-                }
-            }
-        }
-        
-        .navigationTitle(title)
-    }
-
-//    private func addRecipe() {
-//        withAnimation {
-//            let newRecipe = Recipe(
-//                title: "New Recipe",
-//                ingredients: "Sample Ingredients",
-//                instructions: "Sample Instructions",
-//                category: "Desserts"
-//            )
-//            modelContext.insert(newRecipe)
-//        }
-//    }
-//
     private func deleteRecipe(at offsets: IndexSet) {
         withAnimation {
             for index in offsets {
@@ -151,9 +77,35 @@ struct RecipeCatalogView: View {
             }
         }
     }
+    
+    private func recipeList(for recipes: [Recipe], with category: String, matching search: String) -> some View {
+        var searchResults = recipes
+        
+        if (!search.isEmpty) {
+            let lowerSearch = search.lowercased()
+            searchResults = recipes.filter( {$0.title.lowercased().contains(lowerSearch) || $0.ingredients.lowercased().contains(lowerSearch) || $0.instructions.lowercased().contains(lowerSearch) || $0.metaInfo.lowercased().contains(lowerSearch)} )
+        }
+        
+        return List {
+            ForEach(searchResults) { recipe in
+                NavigationLink(recipe.title, destination: RecipeDetailView(recipe: recipe))
+            }
+            .onDelete(perform: deleteRecipe)
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                EditButton()
+            }
+            ToolbarItem {
+                Button(action: enableForm) {
+                    Label("Add Item", systemImage: "plus")
+                }
+            }
+        }
+        .searchable(text: $searchText)
+        .navigationTitle(category + " Recipes")
+        .sheet(isPresented: $isShowingForm) {
+            RecipeFormView(currentCategory: category)
+        }
+    }
 }
-
-//#Preview {
-//    RecipeCatalogView()
-//        .modelContainer(for: Recipe.self, inMemory: true)
-//}
